@@ -10,6 +10,8 @@ SE2 SDK Asset Browser is a Blender add-on for Space Engineers 2 modders. It read
 
 The current version shows assets in a searchable list. See the [roadmap](#roadmap) for planned features.
 
+See the [changelog](CHANGELOG.md) for released changes.
+
 ## Unofficial project
 
 This is an independent community add-on. It is not affiliated with, endorsed by, or supported by Keen Software House or the Space Engineers 2 team. Use it at your own risk.
