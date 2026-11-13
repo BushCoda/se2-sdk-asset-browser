@@ -9,7 +9,8 @@ import time
 import bpy
 
 from .builder import Library, document
-from .model_scope import MODEL_ROOTS, classify_model, model_filters
+from .model_scope import MODEL_ROOTS, classify_model, metadata_value, model_filters, model_owners
+from . import armor, previews
 
 SDK_PATH = Path("steamapps/common/Space Engineers 2 - Mod SDK/GameData/Vanilla/Assets")
 LAST_CLICK = None
@@ -37,13 +38,22 @@ def detect_sdk():
 def index(root):
     library = Library(root)
     models = []
+    owners = model_owners(root)
     for folder in MODEL_ROOTS:
         for path in (root / folder).rglob("*"):
             relative = path.relative_to(root)
             result = classify_model(relative)
             if result and path.is_file():
                 tab, stage = result
-                models.append((tab, relative.as_posix(), stage, *model_filters(relative)))
+                owner = None
+                if folder == "Blocks":
+                    asset_id = metadata_value(path.with_suffix(".fbx.meta")).get("AssetID", "")
+                    owner = owners.get(asset_id.lower())
+                    if owner:
+                        owner_scope = classify_model(owner.with_suffix(".fbx"))
+                        if owner_scope:
+                            tab = owner_scope[0]
+                models.append((tab, relative.as_posix(), stage, *model_filters(relative, owner)))
     for paths in library.definitions.values():
         for path in paths:
             rel = path.relative_to(root)
@@ -99,6 +109,7 @@ def refresh(context):
             entry.name = Path(relative).stem
             entry.relative = relative
             entry.size = size
+            entry.category = category
         count += 1
     state.total = count
 
@@ -116,6 +127,7 @@ def change_tab(self, context):
 class SE2Entry(bpy.types.PropertyGroup):
     relative: bpy.props.StringProperty()
     size: bpy.props.StringProperty()
+    category: bpy.props.StringProperty()
 
 
 class SE2BrowserState(bpy.types.PropertyGroup):
@@ -156,6 +168,7 @@ class SE2Scan(bpy.types.Operator):
                 return {"CANCELLED"}
             prefs.sdk = str(found)
         index.cache_clear()
+        armor.armor_files.cache_clear()
         refresh(context)
         return {"FINISHED"}
 
@@ -164,6 +177,12 @@ def import_asset(root, relative, context):
     path = (root / relative).resolve()
     if not path.is_relative_to(root) or not path.is_file():
         raise ValueError("The selected SDK file could not be found")
+    if path.suffix.lower() == ".comparm" and classify_model(path.relative_to(root)):
+        try:
+            collection = armor.assemble(root, path)
+        except KeyError as error:
+            raise ValueError(f"Missing armour recipe reference {error}") from error
+        return f"Imported {collection.name} ({len(collection.objects)} mesh parts)"
     library, _ = index(root)
     if path.suffix.lower() == ".fbx":
         old = set(bpy.data.objects)
@@ -235,6 +254,60 @@ class SE2Import(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class SE2Preview(bpy.types.Operator):
+    bl_idname = "se2.preview_sdk_model"
+    bl_label = "Generate Model Preview"
+
+    def execute(self, context):
+        state = context.window_manager.se2_browser
+        if not 0 <= state.active < len(state.results):
+            return {"CANCELLED"}
+        root = Path(bpy.path.abspath(settings(context).sdk)).resolve()
+        path = (root / state.results[state.active].relative).resolve()
+        try:
+            if not path.is_relative_to(root) or not classify_model(path.relative_to(root)):
+                raise ValueError("Select a block or production model")
+            previews.start(path)
+        except (OSError, ValueError, KeyError) as error:
+            self.report({"ERROR"}, str(error))
+            return {"CANCELLED"}
+        return {"FINISHED"}
+
+
+def draw_model_details(layout, context, item):
+    box = layout.box()
+    box.label(text=item.name, icon="MESH_CUBE")
+    source = Path(item.relative)
+    box.label(text=f"{item.category} · {item.size}")
+    box.label(text=str(source.parent))
+    root = Path(bpy.path.abspath(settings(context).sdk))
+    try:
+        folder = previews.cache((root / source).resolve())
+        preview = previews.load(folder)
+    except (OSError, ValueError, KeyError):
+        box.label(text="SDK model file unavailable", icon="ERROR")
+        return
+    if preview:
+        icon, details = preview
+        box.template_icon(icon_value=icon, scale=8)
+        dimensions = " × ".join(f"{value:g}" for value in details["dimensions"])
+        box.label(text=f"Mesh bounds: {dimensions} m")
+        for key in ("meshes", "materials"):
+            values = details[key]
+            box.label(text=f"{key.title()} ({len(values)})")
+            for value in values[:5]:
+                box.label(text=value)
+            if len(values) > 5:
+                box.label(text=f"Plus {len(values) - 5} more")
+    elif previews.job:
+        message = "Generating preview…" if previews.job[1] == folder else "Another preview is generating"
+        box.label(text=message, icon="TIME")
+    else:
+        if previews.failure == folder:
+            box.label(text="Preview failed. See preview.log in the cache.", icon="ERROR")
+        box.operator("se2.preview_sdk_model", icon="RENDER_STILL")
+
+
 class SE2_UL_sdk_results(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         text = f"{item.name}  ·  {item.size}" if item.size and item.size != "Unspecified" else item.name
@@ -265,18 +338,23 @@ class SE2_PT_browser(bpy.types.Panel):
             layout.label(text=f"Showing {len(state.results)} of {state.total}. Narrow your search.")
         if state.active < len(state.results):
             layout.operator("se2.import_sdk_asset")
+            if state.tab in {"MODELS", "PRODUCTION"}:
+                draw_model_details(layout, context, state.results[state.active])
 
 
-classes = (SE2Entry, SE2BrowserState, SE2Preferences, SE2Scan, SE2Import, SE2_UL_sdk_results, SE2_PT_browser)
+classes = (SE2Entry, SE2BrowserState, SE2Preferences, SE2Scan, SE2Import, SE2Preview,
+           SE2_UL_sdk_results, SE2_PT_browser)
 
 
 def register():
+    previews.register()
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.WindowManager.se2_browser = bpy.props.PointerProperty(type=SE2BrowserState)
 
 
 def unregister():
+    previews.unregister()
     del bpy.types.WindowManager.se2_browser
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

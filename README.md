@@ -8,7 +8,7 @@ SE2 SDK Asset Browser is a Blender add-on for Space Engineers 2 modders. It read
 - Import an FBX into a named collection with its meshes and any decal geometry included in the file.
 - Browse materials and decal atlases. The add-on links supported materials to textures in your local SDK.
 
-The current version shows assets in a searchable list. See the [roadmap](#roadmap) for planned features.
+Select a model and click **Generate Model Preview** for a cached thumbnail and mesh and material details. For assembled armour, use **Blocks → Category → Light Armour**. See the [roadmap](#roadmap) for planned features.
 
 See the [changelog](CHANGELOG.md) for released changes.
 

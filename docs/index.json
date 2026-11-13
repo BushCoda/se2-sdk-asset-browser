@@ -6,8 +6,8 @@
       "schema_version": "1.0.0",
       "id": "se2_sdk_asset_browser",
       "name": "SE2 SDK Asset Browser",
-      "tagline": "Build an Asset Browser library from your local SE2 Mod SDK",
-      "version": "0.1.1",
+      "tagline": "Browse and import assets from your local SE2 Mod SDK",
+      "version": "0.2.1",
       "type": "add-on",
       "maintainer": "SE2 SDK Asset Browser contributors",
       "license": [
@@ -15,15 +15,15 @@
       ],
       "blender_version_min": "5.2.0",
       "permissions": {
-        "files": "Read local SDK files and generate a Blender asset library"
+        "files": "Read local SDK files and cache model previews"
       },
       "tags": [
         "Import-Export",
         "3D View"
       ],
-      "archive_url": "./se2_sdk_asset_browser-0.1.1.zip",
-      "archive_size": 6620,
-      "archive_hash": "sha256:64239fd93373c26fa89a89f7fdb8bcf8a205fe5b517e7562c45311347302b461"
+      "archive_url": "./se2_sdk_asset_browser-0.2.1.zip",
+      "archive_size": 12501,
+      "archive_hash": "sha256:caf272b9c7fefe482f0e579279b1ffcecf545041e55e48b12d81f327e1f72c14"
     }
   ]
 }
