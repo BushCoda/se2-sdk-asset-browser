@@ -8,7 +8,7 @@ SE2 SDK Asset Browser is a Blender add-on for Space Engineers 2 modders. It read
 - Import an FBX into a named collection with its meshes and any decal geometry included in the file.
 - Browse materials and decal atlases. The add-on links supported materials to textures in your local SDK.
 
-The current version shows assets in a searchable list. Model thumbnail previews are planned for a future version.
+The current version shows assets in a searchable list. See the [roadmap](#roadmap) for planned features.
 
 ## Unofficial project
 
@@ -51,6 +51,15 @@ If you already have the extension ZIP, open **Preferences → Get Extensions →
 - Select a row and click **Import Selected Asset**, or double-click the row. A model appears in a named collection with the meshes and decal geometry supplied by its FBX.
 - **Show LODs and alternate stages** includes additional model variants. Animation files and embedded animation tracks are excluded.
 - For future updates, use **Get Extensions → Refresh Remote**, then update the extension when Blender offers a newer version.
+
+## Roadmap
+
+- **Model thumbnail previews.** Generate previews from the local SDK as needed and cache them for faster browsing.
+- **Block details panel.** Show the selected model's SDK path, size label, available LODs, mesh parts, materials, and decals before import.
+- **Individual part browsing and import.** Browse and import separate meshes such as handles, grilles, and panels. Later work will explore extracting details from joined meshes and searching for parts across indexed blocks.
+- **Material and decal previews.** Preview atlas entries, place a decal on a selected face, and show which texture links resolved.
+- **Vanilla reference view.** Bring a stock block into the scene as a reference for scale, silhouette, seams, and detail density.
+- **Pre-export checks.** Flag missing textures, unexpected dimensions, and naming issues before handing selected models to VRAGE Tools.
 
 ## Troubleshooting
 
