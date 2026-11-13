@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "se2_sdk_asset_browser"
-version = "0.1.0"
+version = "0.1.1"
 name = "SE2 SDK Asset Browser"
 tagline = "Build an Asset Browser library from your local SE2 Mod SDK"
 maintainer = "SE2 SDK Asset Browser contributors"

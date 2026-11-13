@@ -9,6 +9,7 @@ import time
 import bpy
 
 from .builder import Library, document
+from .model_scope import MODEL_ROOTS, classify_model, model_filters
 
 SDK_PATH = Path("steamapps/common/Space Engineers 2 - Mod SDK/GameData/Vanilla/Assets")
 LAST_CLICK = None
@@ -36,10 +37,13 @@ def detect_sdk():
 def index(root):
     library = Library(root)
     models = []
-    for path in root.rglob("*.fbx"):
-        relative = path.relative_to(root).as_posix()
-        stage = bool(re.search(r"lod\d|fractured|construction|collision|deformed", relative.replace("NonFractured", "").replace("Nonfractured", ""), re.I))
-        models.append(("MODELS", relative, stage))
+    for folder in MODEL_ROOTS:
+        for path in (root / folder).rglob("*"):
+            relative = path.relative_to(root)
+            result = classify_model(relative)
+            if result and path.is_file():
+                tab, stage = result
+                models.append((tab, relative.as_posix(), stage, *model_filters(relative)))
     for paths in library.definitions.values():
         for path in paths:
             rel = path.relative_to(root)
@@ -49,7 +53,7 @@ def index(root):
             if "MaterialDefinition" in kind or "DecalKind" in kind:
                 relative = path.relative_to(root).as_posix()
                 tab = "DECALS" if "decal" in relative.lower() or "atlas" in path.stem.lower() else "MATERIALS"
-                models.append((tab, relative, False))
+                models.append((tab, relative, False, "", ""))
     return library, sorted(models, key=lambda row: (Path(row[1]).stem.casefold(), row[1]))
 
 
@@ -61,6 +65,9 @@ def refresh(context):
     state = context.window_manager.se2_browser
     state.results.clear()
     state.active = 0
+    state.total = 0
+    state.categories.clear()
+    state.sizes.clear()
     sdk = settings(context).sdk
     if not sdk:
         state.total = 0
@@ -70,10 +77,20 @@ def refresh(context):
         state.total = 0
         return
     _, records = index(root)
+    candidates = [record for record in records
+                  if record[0] == state.tab and (state.variants or not record[2])]
+    for collection, column in ((state.categories, 3), (state.sizes, 4)):
+        values = {row[column] for row in candidates if row[column]}
+        ordered = sorted(values, key=(lambda value: float(value[:-2]) if value.endswith(" m")
+                                     else float("inf")) if column == 4 else str.casefold)
+        for value in ordered:
+            collection.add().name = value
     terms = state.query.casefold().split()
     count = 0
-    for tab, relative, stage in records:
-        if tab != state.tab or (stage and not state.variants):
+    for _, relative, _, category, size in candidates:
+        if category and state.category and category != state.category:
+            continue
+        if size and state.size and size != state.size:
             continue
         if not all(term in relative.casefold() for term in terms):
             continue
@@ -81,6 +98,7 @@ def refresh(context):
             entry = state.results.add()
             entry.name = Path(relative).stem
             entry.relative = relative
+            entry.size = size
         count += 1
     state.total = count
 
@@ -89,19 +107,31 @@ def update(self, context):
     refresh(context)
 
 
+def change_tab(self, context):
+    self.category = ""
+    self.size = ""
+    refresh(context)
+
+
 class SE2Entry(bpy.types.PropertyGroup):
     relative: bpy.props.StringProperty()
+    size: bpy.props.StringProperty()
 
 
 class SE2BrowserState(bpy.types.PropertyGroup):
     results: bpy.props.CollectionProperty(type=SE2Entry)
     active: bpy.props.IntProperty()
     total: bpy.props.IntProperty()
+    categories: bpy.props.CollectionProperty(type=SE2Entry)
+    sizes: bpy.props.CollectionProperty(type=SE2Entry)
+    category: bpy.props.StringProperty(name="Category", update=update)
+    size: bpy.props.StringProperty(name="Size", update=update)
     query: bpy.props.StringProperty(name="Search SDK", update=update)
     variants: bpy.props.BoolProperty(name="Show LODs and alternate stages", update=update)
     tab: bpy.props.EnumProperty(items=[
-        ("MODELS", "Models", ""), ("MATERIALS", "Materials", ""), ("DECALS", "Decals", "")
-    ], update=update)
+        ("MODELS", "Blocks", ""), ("PRODUCTION", "Production", ""),
+        ("MATERIALS", "Materials", ""), ("DECALS", "Decals", "")
+    ], update=change_tab)
 
 
 class SE2Preferences(bpy.types.AddonPreferences):
@@ -137,7 +167,9 @@ def import_asset(root, relative, context):
     library, _ = index(root)
     if path.suffix.lower() == ".fbx":
         old = set(bpy.data.objects)
-        bpy.ops.import_scene.fbx(filepath=str(path), use_image_search=False)
+        if classify_model(path.relative_to(root)) is None:
+            raise ValueError("This FBX is outside the block model library")
+        bpy.ops.import_scene.fbx(filepath=str(path), use_image_search=False, use_anim=False)
         imported = set(bpy.data.objects) - old
         if not imported:
             raise ValueError("Blender did not import any objects from this FBX")
@@ -205,7 +237,8 @@ class SE2Import(bpy.types.Operator):
 
 class SE2_UL_sdk_results(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        button = layout.operator("se2.import_sdk_asset", text=item.name, emboss=False)
+        text = f"{item.name}  ·  {item.size}" if item.size and item.size != "Unspecified" else item.name
+        button = layout.operator("se2.import_sdk_asset", text=text, emboss=False)
         button.row = index
 
 
@@ -221,8 +254,12 @@ class SE2_PT_browser(bpy.types.Panel):
         layout.operator("se2.scan_sdk")
         layout.prop(state, "tab", expand=True)
         layout.prop(state, "query", icon="VIEWZOOM")
-        if state.tab == "MODELS":
+        if state.tab in {"MODELS", "PRODUCTION"}:
+            layout.prop_search(state, "category", state, "categories")
+            layout.prop_search(state, "size", state, "sizes")
             layout.prop(state, "variants")
+        if not state.total:
+            layout.label(text="No matching assets")
         layout.template_list("SE2_UL_sdk_results", "", state, "results", state, "active", rows=12)
         if state.total > len(state.results):
             layout.label(text=f"Showing {len(state.results)} of {state.total}. Narrow your search.")
