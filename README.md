@@ -1,6 +1,18 @@
 # SE2 SDK Asset Browser
 
-Browse and import vanilla Space Engineers 2 blocks, production models, materials, and decals into Blender. The add-on reads your local Mod SDK installation.
+## What the add-on does
+
+SE2 SDK Asset Browser is a Blender add-on for Space Engineers 2 modders. It reads your local Mod SDK installation so you can find vanilla assets and bring them into a Blender scene.
+
+- Browse building blocks, armour, and production models. Combine text search with category and size filters.
+- Import an FBX into a named collection with its meshes and any decal geometry included in the file.
+- Browse materials and decal atlases. The add-on links supported materials to textures in your local SDK.
+
+The current version shows assets in a searchable list. Model thumbnail previews are planned for a future version.
+
+## Unofficial project
+
+This is an independent community add-on. It is not affiliated with, endorsed by, or supported by Keen Software House or the Space Engineers 2 team. Use it at your own risk.
 
 ## Requirements
 
